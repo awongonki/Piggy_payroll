@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clock-In Piggy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: two-column workbench. The glass piggy is the hero on the left; the shift clock is one dark instrument block on the right, with quieter care tools under it. Stacks on phones. */
+:root{
+  --bg:#EDF1EC; --surface:#FFFFFF; --sunk:#E2E8E0; --ink:#2B2030; --muted:#685E6D; --line:#D3DAD1;
+  --pig:#F4B3C0; --pig-deep:#D3778C; --gloss:rgba(255,255,255,.42);
+  --coin:#E6A92E; --coin-deep:#9E6A08; --on-coin:#2B1D05;
+  --calm:#2F7A5C; --warn:#B9542A; --on-accent:#FFFFFF;
+  --f-display:"Bricolage Grotesque","Trebuchet MS",system-ui,sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-data:"DM Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#18141E; --surface:#231E2A; --sunk:#2B2533; --ink:#F2EBF1; --muted:#A99DAB; --line:#3A3343;
+    --pig:#E893A5; --pig-deep:#B9627A; --gloss:rgba(255,255,255,.28);
+    --coin:#F0BC4A; --coin-deep:#D29B2C; --on-coin:#2B1D05;
+    --calm:#74C7A0; --warn:#F08F62; --on-accent:#16241C; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#18141E; --surface:#231E2A; --sunk:#2B2533; --ink:#F2EBF1; --muted:#A99DAB; --line:#3A3343;
+  --pig:#E893A5; --pig-deep:#B9627A; --gloss:rgba(255,255,255,.28);
+  --coin:#F0BC4A; --coin-deep:#D29B2C; --on-coin:#2B1D05;
+  --calm:#74C7A0; --warn:#F08F62; --on-accent:#16241C; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+[hidden]{display:none!important}
+.mono{font-family:var(--f-data);font-variant-numeric:tabular-nums}
+.app{max-width:1120px;margin:0 auto;padding-block:24px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:24px}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px}
+.brand{display:flex;align-items:center;gap:10px}
+.mark{width:26px;height:26px;border-radius:50%;background:var(--coin);box-shadow:inset 0 0 0 3px var(--coin-deep),inset 0 0 0 6px var(--coin);flex:none}
+h1{font-family:var(--f-display);font-weight:800;font-size:1.55rem;letter-spacing:-.02em;margin:0}
+.now{color:var(--muted);font-size:.95rem}
+
+.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:880px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+.eyebrow{margin:0;font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+.sub{margin:0;color:var(--muted)}
+.chip{display:inline-block;font-size:.8rem;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+
+/* hero jar */
+.jar{background:var(--surface);border-radius:28px;padding:28px clamp(18px,3vw,32px) 22px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.jar-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.earned{font-size:clamp(2.5rem,7.2vw,4.4rem);font-weight:500;letter-spacing:-.04em;line-height:1.05;margin-top:4px;overflow-wrap:anywhere}
+.earned small{font-size:.48em;color:var(--muted);letter-spacing:0}
+.canvas-wrap{margin:8px auto 0;width:100%;max-width:520px}
+#pig{display:block;width:100%;max-width:100%;aspect-ratio:420/330}
+.rates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);margin-top:10px;padding-top:14px}
+.rates div{display:flex;flex-direction:column;gap:2px;padding-inline:10px;border-left:1px solid var(--line);min-width:0}
+.rates div:first-child{border-left:0;padding-left:0}
+.rates span:last-child{font-family:var(--f-data);font-variant-numeric:tabular-nums;font-size:1.02rem;overflow-wrap:anywhere}
+
+/* side */
+.side{display:flex;flex-direction:column;gap:20px;min-width:0}
+.shift{background:var(--ink);color:var(--bg);border-radius:28px;padding:24px clamp(18px,3vw,28px);display:flex;flex-direction:column;gap:10px}
+.shift .eyebrow,.shift .sub{color:color-mix(in srgb,var(--bg) 72%,var(--ink))}
+.status-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;padding:4px 11px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.calm{background:var(--calm);border-color:var(--calm);color:var(--on-accent)}
+.pill.warn{background:var(--warn);border-color:var(--warn);color:var(--on-accent)}
+.pill.coin{background:var(--coin);border-color:var(--coin);color:var(--on-coin)}
+.pill.idle{opacity:.75}
+.countdown{font-size:clamp(2.6rem,8vw,4rem);font-weight:500;letter-spacing:-.03em;line-height:1}
+.bar{height:12px;border-radius:999px;background:color-mix(in srgb,var(--bg) 20%,var(--ink));overflow:hidden;margin-top:6px}
+.bar-fill{height:100%;width:0;background:var(--coin);border-radius:inherit}
+.bar-legend{display:flex;justify-content:space-between;font-size:.8rem;gap:8px}
+.bar-legend span{color:color-mix(in srgb,var(--bg) 72%,var(--ink))}
+.message{margin:4px 0 0;font-family:var(--f-display);font-weight:600;font-size:1.12rem;line-height:1.35;text-wrap:balance;min-height:2.7em}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+
+.btn{font:inherit;font-weight:700;font-size:.95rem;padding:11px 20px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;transition:transform .12s ease,background-color .15s ease}
+.btn:hover{background:var(--sunk)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:var(--coin);border-color:var(--coin);color:var(--on-coin)}
+.btn.primary:hover{background:color-mix(in srgb,var(--coin) 88%,var(--ink))}
+.btn.ghost{background:transparent;color:inherit;border-color:color-mix(in srgb,currentColor 40%,transparent)}
+.btn.ghost:hover{background:color-mix(in srgb,currentColor 10%,transparent)}
+.btn.running{background:var(--warn);border-color:var(--warn);color:var(--on-accent)}
+:focus-visible{outline:3px solid var(--coin);outline-offset:2px}
+
+.tool{display:flex;flex-direction:column;gap:8px;padding:2px 4px 20px;border-bottom:1px solid var(--line)}
+.tool h2{font-family:var(--f-display);font-size:1.2rem;font-weight:700;margin:0;letter-spacing:-.01em}
+.tool p{margin:0;color:var(--muted);max-width:60ch}
+.meter-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-top:2px}
+.meter-row .big{font-size:1.7rem;font-weight:500;letter-spacing:-.02em}
+.meter-row .pill{align-self:center}
+.tool .btn{align-self:flex-start}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.win-form{display:flex;gap:8px;flex-wrap:wrap}
+.win-form input,.line-input{flex:1 1 180px;min-width:0;font:inherit;font-size:1rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.win-form input{flex:1 1 140px;padding:8px 12px;font-size:.95rem}
+.win-form .btn{padding:8px 16px}
+.win-count{display:flex;align-items:center;gap:8px;font-weight:600;min-width:0}
+.win-count::before{content:"";flex:none;width:10px;height:10px;border-radius:50%;background:var(--calm)}
+.win-last{color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.wisdom{margin:10px 0 0;padding-left:12px;border-left:3px solid var(--coin);font-family:var(--f-display);font-weight:600;font-size:1.02rem;line-height:1.35;text-wrap:balance;max-width:46ch}
+.sources{font-size:.85rem;color:var(--muted);max-width:760px;margin:0 auto;text-align:center}
+.sources summary{cursor:pointer;display:inline-block;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.sources ul{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.sources a{color:var(--ink);text-decoration-color:var(--coin);text-underline-offset:3px}
+
+/* settings */
+.settings summary{cursor:pointer;font-family:var(--f-display);font-size:1.2rem;font-weight:700;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.settings summary::-webkit-details-marker{display:none}
+.settings summary::after{content:"+";font-family:var(--f-data);font-size:1.3rem;color:var(--muted)}
+.settings[open] summary::after{content:"−"}
+.settings form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field.wide{grid-column:1/-1}
+.field label,.field legend{font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:0}
+.field input,.field select{font:inherit;font-size:1rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;width:100%;min-width:0}
+fieldset.field{border:0;margin:0;padding:0}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--sunk);border-radius:14px;padding:4px;gap:4px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{text-transform:none;letter-spacing:0;font-size:.95rem;font-weight:600;color:var(--muted);text-align:center;padding:9px 8px;border-radius:10px;cursor:pointer}
+.seg input:checked + label{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg input:focus-visible + label{outline:3px solid var(--coin);outline-offset:1px}
+.hint{grid-column:1/-1;margin:0;font-size:.85rem;color:var(--muted)}
+.err{grid-column:1/-1;margin:0;font-size:.9rem;color:var(--warn);font-weight:600}
+.form-actions{grid-column:1/-1}
+
+.foot{color:var(--muted);font-size:.85rem;text-align:center}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:max-content;max-width:min(480px,calc(100% - 32px));background:var(--ink);color:var(--bg);padding:14px 18px;border-radius:16px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:20;animation:pop .25s ease}
+@keyframes pop{from{transform:translate(-50%,10px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span><h1>Clock-In Piggy</h1></div>
+    <div class="now"><span id="todayLabel"></span> · <span id="clockNow" class="mono"></span></div>
+  </header>
+
+  <main class="grid">
+    <section class="jar" aria-labelledby="jarLabel">
+      <div class="jar-head">
+        <p class="eyebrow" id="jarLabel">Earned today</p>
+        <span class="chip" id="exampleChip">Example pay. Enter yours in Pay settings.</span>
+      </div>
+      <div class="earned mono" id="earned">$0.00</div>
+      <p class="sub" id="earnedSub">of today's pay</p>
+      <p class="wisdom" id="wisdom" aria-live="polite">Whatever your colleagues say, your salary keeps coming in.</p>
+      <div class="canvas-wrap"><canvas id="pig" role="img" aria-label="A glass piggy bank that fills with coins as your shift goes on"></canvas></div>
+      <div class="rates">
+        <div><span class="eyebrow">Per hour</span><span id="rateH">$0</span></div>
+        <div><span class="eyebrow">Per minute</span><span id="rateM">$0</span></div>
+        <div><span class="eyebrow">Per second</span><span id="rateS">$0</span></div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="shift" aria-label="Shift clock">
+        <div class="status-row">
+          <span class="pill idle" id="statusPill">Not clocked in</span>
+          <span class="pill coin" id="weekendPill" hidden>Weekend</span>
+        </div>
+        <p class="eyebrow" id="countLabel">Time until you leave</p>
+        <div class="countdown mono" id="countdown" role="timer">00:00:00</div>
+        <p class="sub" id="leaveAt">You leave at 5:00 PM</p>
+        <div class="bar" role="progressbar" aria-label="Shift progress" aria-valuemin="0" aria-valuemax="100" id="bar"><div class="bar-fill" id="barFill"></div></div>
+        <div class="bar-legend"><span id="startLbl">9:00 AM</span><span id="pctLbl" class="mono">0%</span><span id="endLbl">5:00 PM</span></div>
+        <p class="message" id="message" aria-live="polite"></p>
+        <div class="actions">
+          <button type="button" class="btn primary" id="clockBtn">Clock in</button>
+          <button type="button" class="btn ghost" id="soundBtn" aria-pressed="false">Coin sound: off</button>
+        </div>
+      </section>
+
+      <section class="tool" aria-labelledby="winsTitle">
+        <h2 id="winsTitle">Small wins</h2>
+        <form class="win-form" id="winForm">
+          <label for="winInput" class="sr-only">A small win from today</label>
+          <input id="winInput" type="text" maxlength="60" placeholder="A few words, e.g. sent the draft">
+          <button type="submit" class="btn">Add</button>
+        </form>
+        <div class="win-count"><span id="winCount">No wins yet today</span><span class="win-last" id="winLast"></span></div>
+      </section>
+
+      <section class="tool" aria-labelledby="dramaTitle">
+        <h2 id="dramaTitle">Politics timer</h2>
+        <p>Start it when the gossip starts.</p>
+        <div class="meter-row"><span class="big mono" id="dramaTime">0 min</span><span class="sub mono" id="dramaMoney">$0.00 of your pay today</span></div>
+        <button type="button" class="btn" id="dramaBtn">Start timer</button>
+      </section>
+
+      <details class="tool settings" id="settings">
+        <summary>Pay settings</summary>
+        <form id="form" novalidate>
+          <fieldset class="field wide">
+            <legend>I know my</legend>
+            <div class="seg">
+              <input type="radio" name="mode" id="modeMonthly" value="monthly"><label for="modeMonthly">Monthly paycheck</label>
+              <input type="radio" name="mode" id="modeDaily" value="daily"><label for="modeDaily">Daily salary</label>
+            </div>
+          </fieldset>
+          <div class="field"><label for="amount" id="amountLbl">Monthly take-home</label><input id="amount" type="number" inputmode="decimal" min="0" step="any"></div>
+          <div class="field"><label for="currency">Currency</label>
+            <select id="currency">
+              <option value="USD">USD $</option><option value="EUR">EUR €</option><option value="GBP">GBP £</option>
+              <option value="KRW">KRW ₩</option><option value="JPY">JPY ¥</option><option value="CNY">CNY ¥</option>
+              <option value="HKD">HKD $</option><option value="SGD">SGD $</option><option value="AUD">AUD $</option>
+              <option value="CAD">CAD $</option><option value="CHF">CHF</option><option value="INR">INR ₹</option>
+              <option value="PHP">PHP ₱</option><option value="MYR">MYR RM</option>
+            </select>
+          </div>
+          <div class="field" id="daysField"><label for="days">Workdays per month</label><input id="days" type="number" inputmode="decimal" min="1" max="31" step="any"></div>
+          <div class="field"><label for="start">Shift starts</label><input id="start" type="time"></div>
+          <div class="field"><label for="end">Shift ends</label><input id="end" type="time"></div>
+          <p class="hint" id="dailyHint"></p>
+          <p class="err" id="formErr" hidden></p>
+          <div class="form-actions"><button type="submit" class="btn primary">Save pay</button></div>
+        </form>
+      </details>
+    </aside>
+  </main>
+
+  <details class="sources">
+    <summary>Why it works</summary>
+    <ul>
+      <li>Small wins lift motivation the most. <a href="https://hbr.org/2011/05/the-power-of-small-wins" target="_blank" rel="noopener">Amabile and Kramer, 2011</a></li>
+      <li>Switching off after work helps recovery. <a href="https://doi.org/10.1037/1076-8998.12.3.204" target="_blank" rel="noopener">Sonnentag and Fritz, 2007</a></li>
+      <li>Burnout means exhaustion, cynicism and feeling ineffective. <a href="https://doi.org/10.1002/wps.20311" target="_blank" rel="noopener">Maslach and Leiter, 2016</a></li>
+      <li>This is a nudge, not treatment. If work drains you most days, talk to a doctor.</li>
+    </ul>
+  </details>
+
+  <p class="foot">Your pay and times stay in this browser. Nothing is sent anywhere.</p>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(() => {
+  const KEY = 'clockin-piggy-v1';
+  const $ = id => document.getElementById(id);
+  const reduceMQ = matchMedia('(prefers-reduced-motion: reduce)');
+  const dayKey = () => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+  const DEFAULTS = {
+    settings: { mode: 'monthly', amount: 4500, currency: 'USD', days: 22, start: '09:00', end: '17:00', example: true },
+    day: dayKey(), clockedIn: null, dramaMs: 0, dramaStart: null, milestones: [], wins: [], sound: false
+  };
+  const clone = o => JSON.parse(JSON.stringify(o));
+  const freshDay = s => Object.assign(s, { day: dayKey(), clockedIn: null, dramaMs: 0, dramaStart: null, milestones: [], wins: [] });
+
+  function load() {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+    const out = clone(DEFAULTS);
+    if (s && typeof s === 'object') {
+      Object.assign(out, s);
+      out.settings = Object.assign({}, DEFAULTS.settings, s.settings || {});
+    }
+    if (out.day !== dayKey()) freshDay(out);
+    return out;
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  let S = load();
+
+  /* ---------- money and time ---------- */
+  let fmtCache = {};
+  function fmt(v, extra = 0) {
+    const c = S.settings.currency, k = c + extra;
+    if (!fmtCache[k]) {
+      const base = new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).resolvedOptions().maximumFractionDigits;
+      fmtCache[k] = new Intl.NumberFormat('en-US', { style: 'currency', currency: c, minimumFractionDigits: base + extra, maximumFractionDigits: base + extra });
+    }
+    return fmtCache[k].format(v);
+  }
+  const hm = str => { const [h, m] = String(str || '0:0').split(':').map(Number); return [h || 0, m || 0]; };
+  function shift(now) {
+    const d = new Date(now), [sh, sm] = hm(S.settings.start), [eh, em] = hm(S.settings.end);
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh, sm).getTime();
+    let end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em).getTime();
+    if (end <= start) end += 864e5;
+    return { start, end, len: end - start };
+  }
+  function dailyPay() {
+    const s = S.settings, a = Math.max(0, +s.amount || 0);
+    return s.mode === 'daily' ? a : a / Math.max(1, +s.days || 22);
+  }
+  const clockFmt = ts => new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  function hms(ms) {
+    const t = Math.max(0, Math.ceil(ms / 1000));
+    const p = n => String(n).padStart(2, '0');
+    return p(Math.floor(t / 3600)) + ':' + p(Math.floor(t / 60) % 60) + ':' + p(t % 60);
+  }
+  function mins(ms) {
+    const m = Math.floor(ms / 60000);
+    if (m < 60) return m + ' min';
+    return Math.floor(m / 60) + ' h ' + (m % 60) + ' min';
+  }
+  const setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
+  const setHTML = (el, v) => { if (el._h !== v) { el.innerHTML = v; el._h = v; } };
+  const setPill = (el, cls, text) => { const c = 'pill ' + cls; if (el.className !== c) el.className = c; setText(el, text); };
+
+  /* ---------- toast ---------- */
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('toast');
+    t.hidden = false; t.textContent = msg;
+    t.style.animation = 'none'; void t.offsetWidth; t.style.animation = '';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 6500);
+  }
+
+  /* ---------- sound ---------- */
+  let actx = null;
+  function ensureAudio() {
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) { actx = null; }
+  }
+  function ping() {
+    if (!S.sound || !actx) return;
+    try {
+      const t = actx.currentTime;
+      [1760, 2637].forEach((f, i) => {
+        const o = actx.createOscillator(), g = actx.createGain(), at = t + i * 0.06;
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(0.1, at + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
+        o.connect(g).connect(actx.destination); o.start(at); o.stop(at + 0.4);
+      });
+    } catch (e) {}
+  }
+
+  /* ---------- wake lock ---------- */
+  let wake = null;
+  async function keepAwake() {
+    if (!S.clockedIn || wake || !('wakeLock' in navigator)) return;
+    try { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } catch (e) { wake = null; }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); lastDrop = Date.now(); } });
+
+  /* ---------- copy ---------- */
+  const MILESTONES = [
+    [0.25, 'A quarter of the piggy is full. Keep a steady pace, not a frantic one.'],
+    [0.5, 'Halfway there. Take a real lunch, away from your desk.'],
+    [0.75, 'Three quarters done. Wrap up. Don’t pick up new fights now.'],
+    [1, 'The piggy is full. Today’s pay is banked. Go home.']
+  ];
+  const ENCOURAGE = [
+    'Every minute here is already paid. You don’t need to earn it twice.',
+    'You are paid for your work. Winning arguments is not in your contract.',
+    'Not every message needs an answer right now.',
+    'Office drama doesn’t make the piggy fill any faster.',
+    'Do the next useful thing. Then the one after that.',
+    'Good enough and on time beats perfect and late.',
+    'Protect your evening. It’s not part of the shift.'
+  ];
+  const WISDOM = [
+    'Whatever your colleagues say, your salary keeps coming in.',
+    'Gossip doesn’t change your pay. Let it pass.',
+    'Your worth isn’t decided in the meeting room.',
+    'Someone else’s bad mood is not on your payslip.',
+    'Do your part well. The rest is noise.'
+  ];
+
+  /* ---------- canvas piggy ---------- */
+  const cv = $('pig'), ctx = cv.getContext('2d');
+  const W = 420, H = 330, SLOT_Y = 100, COIN_X = 214;
+  let tok = {};
+  function readTokens() {
+    const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+    tok = { pig: g('--pig'), pigDeep: g('--pig-deep'), coin: g('--coin'), coinDeep: g('--coin-deep'), ink: g('--ink'), gloss: g('--gloss'), sunk: g('--sunk'), calm: g('--calm') };
+  }
+  readTokens();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readTokens);
+  new MutationObserver(readTokens).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+
+  function resize() {
+    const w = cv.clientWidth || 420, dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * H / W * dpr);
+  }
+  new ResizeObserver(resize).observe(cv);
+  resize();
+
+  const ell = (x, y, rx, ry, rot = 0) => { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); };
+  function rrect(x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else { ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  }
+  // coin texture positions, fixed so the pile doesn't shimmer
+  const PILE = [];
+  for (let row = 0; row < 16; row++) for (let i = 0; i < 12; i++) PILE.push({ x: 74 + i * 24 + (row % 2) * 12 + ((i * 7 + row * 3) % 5) - 2, y: 282 - row * 12.5 });
+
+  const coins = [], floats = [];
+  let level = null, bounce = 0, lastDrop = Date.now();
+
+  const coinLabel = c => c.win ? '+1 win' : '+' + fmt(c.value);
+  function spawnCoin(value, win = false) {
+    if (reduceMQ.matches) { floats.push({ text: coinLabel({ value, win }), y: 86, life: 1, win }); return; }
+    coins.push({ y: -18, vy: 60, spin: Math.random() * 3, value, win });
+  }
+
+  function drawPig(dt, time, prog, live) {
+    const k = cv.width / W;
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (level === null) level = prog;
+    level += (prog - level) * Math.min(1, dt * 2.5);
+
+    // ground shadow
+    ctx.fillStyle = tok.sunk; ell(212, 312, 128, 9); ctx.fill();
+
+    bounce = Math.max(0, bounce - dt * 2.2);
+    const sq = Math.sin((1 - bounce) * Math.PI * 3) * bounce * 0.04;
+    ctx.save();
+    ctx.translate(212, 304); ctx.scale(1 + sq, 1 - sq); ctx.translate(-212, -304);
+    ctx.translate(8, 0);
+
+    // legs
+    ctx.fillStyle = tok.pigDeep;
+    [116, 156, 230, 270].forEach(x => { rrect(x, 258, 30, 46, 11); ctx.fill(); });
+    // tail
+    ctx.strokeStyle = tok.pigDeep; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(73, 182); ctx.bezierCurveTo(52, 176, 46, 150, 63, 148); ctx.bezierCurveTo(79, 147, 79, 168, 61, 167); ctx.stroke();
+    // back ear
+    ctx.fillStyle = tok.pigDeep;
+    ctx.beginPath(); ctx.moveTo(232, 114); ctx.quadraticCurveTo(236, 80, 247, 70); ctx.quadraticCurveTo(262, 88, 266, 108); ctx.closePath(); ctx.fill();
+
+    // body
+    ctx.fillStyle = tok.pig; ell(200, 190, 130, 95); ctx.fill();
+
+    // coins inside
+    ctx.save(); ell(200, 190, 127, 92); ctx.clip();
+    const top = 284 - level * 190;
+    const amp = reduceMQ.matches ? 0 : (live ? 3 : 1.2);
+    ctx.beginPath(); ctx.moveTo(60, H);
+    for (let x = 60; x <= 342; x += 6) ctx.lineTo(x, top + Math.sin(x / 15 + time * 2.2) * amp);
+    ctx.lineTo(342, H); ctx.closePath();
+    const gr = ctx.createLinearGradient(0, top, 0, 285);
+    gr.addColorStop(0, tok.coin); gr.addColorStop(1, tok.coinDeep);
+    ctx.fillStyle = gr; ctx.fill();
+    ctx.globalAlpha = 0.38; ctx.strokeStyle = tok.coinDeep; ctx.lineWidth = 1.5;
+    for (const p of PILE) { if (p.y > top + 8) { ell(p.x, p.y, 10, 3.6); ctx.stroke(); } }
+    ctx.globalAlpha = 0.55; ctx.strokeStyle = tok.gloss; ctx.lineWidth = 2;
+    for (const p of PILE) { if (p.y > top + 8 && p.y < top + 34) { ell(p.x, p.y - 1, 6, 1.6); ctx.stroke(); } }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // glass gloss + outline
+    ctx.fillStyle = tok.gloss; ell(146, 138, 58, 20, -0.4); ctx.fill();
+    ell(118, 168, 10, 6, -0.4); ctx.fill();
+    ctx.strokeStyle = tok.pigDeep; ctx.lineWidth = 3; ell(200, 190, 130, 95); ctx.stroke();
+
+    // front ear
+    ctx.fillStyle = tok.pig;
+    ctx.beginPath(); ctx.moveTo(250, 118); ctx.quadraticCurveTo(258, 80, 274, 64); ctx.quadraticCurveTo(292, 92, 296, 122); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // snout
+    ell(326, 196, 24, 31); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = tok.pigDeep; ell(318, 196, 3.6, 7.5); ctx.fill(); ell(333, 196, 3.6, 7.5); ctx.fill();
+    // eye and cheek
+    ctx.fillStyle = tok.ink; ell(284, 156, 5.5, 6); ctx.fill();
+    ctx.globalAlpha = 0.35; ctx.fillStyle = tok.pigDeep; ell(282, 186, 13, 7); ctx.fill(); ctx.globalAlpha = 1;
+    // slot
+    ctx.fillStyle = tok.ink; rrect(COIN_X - 8 - 26, SLOT_Y - 3, 52, 9, 4.5); ctx.fill();
+    ctx.restore();
+
+    // falling coins
+    for (let i = coins.length - 1; i >= 0; i--) {
+      const c = coins[i];
+      c.vy += 900 * dt; c.y += c.vy * dt; c.spin += 9 * dt;
+      if (c.y >= SLOT_Y) {
+        coins.splice(i, 1); bounce = 1; ping();
+        floats.push({ text: coinLabel(c), y: 84, life: 1, win: c.win });
+        continue;
+      }
+      ctx.save(); ctx.beginPath(); ctx.rect(0, -40, W, SLOT_Y + 42); ctx.clip();
+      const rx = 13 * Math.abs(Math.cos(c.spin)) + 1.5;
+      ctx.fillStyle = c.win ? tok.calm : tok.coin; ctx.strokeStyle = c.win ? tok.ink : tok.coinDeep; ctx.lineWidth = 2;
+      ell(COIN_X, c.y, rx, 13); ctx.fill(); ctx.stroke();
+      if (rx > 6) { ell(COIN_X, c.y, rx * 0.6, 8); ctx.stroke(); }
+      ctx.restore();
+    }
+    // floating amounts
+    ctx.font = '500 15px "DM Mono", ui-monospace, monospace'; ctx.textAlign = 'center';
+    for (let i = floats.length - 1; i >= 0; i--) {
+      const f = floats[i];
+      f.y -= dt * 26; f.life -= dt * 0.6;
+      if (f.life <= 0) { floats.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.6));
+      ctx.fillStyle = f.win ? tok.calm : tok.coinDeep; ctx.fillText(f.text, COIN_X + 62, f.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* ---------- settings form ---------- */
+  function fillForm() {
+    const s = S.settings;
+    $('modeMonthly').checked = s.mode === 'monthly';
+    $('modeDaily').checked = s.mode === 'daily';
+    $('amount').value = s.amount; $('currency').value = s.currency; $('days').value = s.days;
+    $('start').value = s.start; $('end').value = s.end;
+    syncFormMode();
+  }
+  function syncFormMode() {
+    const daily = $('modeDaily').checked;
+    $('daysField').hidden = daily;
+    setText($('amountLbl'), daily ? 'Daily salary' : 'Monthly take-home');
+    const a = +$('amount').value || 0, d = +$('days').value || 22;
+    const prevCur = S.settings.currency;
+    S.settings.currency = $('currency').value || prevCur;
+    const per = daily ? a : a / Math.max(1, d);
+    $('dailyHint').textContent = a > 0 ? 'That works out to ' + fmt(per) + ' for each working day.' : '';
+    S.settings.currency = prevCur;
+  }
+  $('form').addEventListener('input', syncFormMode);
+  $('form').addEventListener('submit', e => {
+    e.preventDefault();
+    const err = $('formErr');
+    const mode = $('modeDaily').checked ? 'daily' : 'monthly';
+    const amount = parseFloat($('amount').value), days = parseFloat($('days').value);
+    const start = $('start').value, end = $('end').value;
+    let msg = '';
+    if (!(amount > 0)) msg = 'Enter your pay as a number above zero.';
+    else if (mode === 'monthly' && !(days >= 1 && days <= 31)) msg = 'Workdays per month should be between 1 and 31.';
+    else if (!start || !end) msg = 'Set both a start and an end time.';
+    else if (start === end) msg = 'Start and end times are the same. Change one of them.';
+    if (msg) { err.textContent = msg; err.hidden = false; return; }
+    err.hidden = true;
+    S.settings = { mode, amount, currency: $('currency').value, days: mode === 'monthly' ? days : (S.settings.days || 22), start, end, example: false };
+    fmtCache = {};
+    save();
+    toast('Pay saved. Today is worth ' + fmt(dailyPay()) + '.');
+  });
+
+  /* ---------- wins ---------- */
+  function renderWins() {
+    const n = S.wins.length;
+    $('winCount').textContent = n ? n + ' win' + (n > 1 ? 's' : '') + ' today' : 'No wins yet today';
+    $('winLast').textContent = n ? '· ' + S.wins[n - 1].text : '';
+  }
+  $('winForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = $('winInput').value.trim();
+    if (!v) { $('winInput').focus(); return; }
+    ensureAudio();
+    S.wins.push({ t: Date.now(), text: v });
+    $('winInput').value = '';
+    save(); renderWins(); spawnCoin(0, true);
+  });
+
+  /* ---------- buttons ---------- */
+  $('clockBtn').addEventListener('click', () => {
+    ensureAudio();
+    const now = Date.now();
+    if (!S.clockedIn) {
+      S.clockedIn = now;
+      const sh = shift(now), prog = Math.min(1, Math.max(0, (now - sh.start) / sh.len));
+      S.milestones = MILESTONES.filter(m => prog >= m[0]).map(m => m[0]);
+      lastDrop = now - 4000;
+      keepAwake();
+      save();
+      toast(now >= sh.end ? 'You clocked in after your shift ended. The piggy is already full.' : 'Clocked in. Watch the piggy fill up.');
+    } else {
+      const sh = shift(now), el = Math.min(Math.max(now - sh.start, 0), sh.len), n = S.wins.length;
+      S.clockedIn = null;
+      if (S.dramaStart) { S.dramaMs += now - S.dramaStart; S.dramaStart = null; }
+      if (wake) { wake.release().catch(() => {}); wake = null; }
+      save();
+      toast('Clocked out. You banked ' + fmt(el * dailyPay() / sh.len) + (n ? ' and ' + n + ' win' + (n > 1 ? 's' : '') : '') + ' today. Rest well.');
+    }
+  });
+  $('soundBtn').addEventListener('click', () => {
+    S.sound = !S.sound;
+    if (S.sound) { ensureAudio(); ping(); }
+    save();
+  });
+  $('dramaBtn').addEventListener('click', () => {
+    const now = Date.now();
+    if (S.dramaStart) {
+      const took = now - S.dramaStart, sh = shift(now);
+      S.dramaMs += took; S.dramaStart = null;
+      toast('That took ' + Math.max(1, Math.round(took / 60000)) + ' min, about ' + fmt(took * dailyPay() / sh.len) + ' of your paid day.');
+    } else {
+      S.dramaStart = now;
+      toast('Whatever they say, your salary keeps coming in.');
+    }
+    save();
+  });
+
+  /* ---------- main loop ---------- */
+  const todayEl = $('todayLabel');
+  let wisdomIdx = 0, wisdomAt = Date.now();
+  let lastT = performance.now(), encourageIdx = Math.floor(Math.random() * ENCOURAGE.length), encourageAt = 0;
+
+  function frame(t) {
+    const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
+    const now = Date.now();
+    if (S.day !== dayKey()) { freshDay(S); save(); renderWins(); }
+    if (now - wisdomAt > 40000) { wisdomAt = now; wisdomIdx = (wisdomIdx + 1) % WISDOM.length; setText($('wisdom'), WISDOM[wisdomIdx]); }
+
+    const sh = shift(now), pay = dailyPay(), rate = pay / sh.len;
+    const el = Math.min(Math.max(now - sh.start, 0), sh.len), prog = el / sh.len, earned = el * rate;
+    const phase = now < sh.start ? 'before' : now >= sh.end ? 'after' : 'during';
+    const on = !!S.clockedIn;
+    const d = new Date(now);
+
+    setText(todayEl, d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }));
+    setText($('clockNow'), d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }));
+    $('exampleChip').hidden = !S.settings.example;
+    $('weekendPill').hidden = !(d.getDay() === 0 || d.getDay() === 6);
+
+    // earned
+    const s = fmt(earned, 2);
+    setHTML($('earned'), s.slice(0, -2) + '<small>' + s.slice(-2) + '</small>');
+    setText($('earnedSub'), 'of ' + fmt(pay) + ' today · ' + Math.floor(prog * 100) + '% of your shift');
+    setText($('rateH'), fmt(rate * 36e5));
+    setText($('rateM'), fmt(rate * 6e4, 1));
+    setText($('rateS'), fmt(rate * 1e3, 2));
+
+    // shift clock
+    setText($('startLbl'), clockFmt(sh.start));
+    setText($('endLbl'), clockFmt(sh.end));
+    setText($('pctLbl'), Math.floor(prog * 100) + '%');
+    $('barFill').style.width = (prog * 100).toFixed(2) + '%';
+    $('bar').setAttribute('aria-valuenow', Math.floor(prog * 100));
+    if (phase === 'before') {
+      setText($('countLabel'), 'Shift starts in');
+      setText($('countdown'), hms(sh.start - now));
+      setText($('leaveAt'), 'Starts at ' + clockFmt(sh.start) + ', ends at ' + clockFmt(sh.end));
+    } else if (phase === 'during') {
+      setText($('countLabel'), 'Time until you leave');
+      setText($('countdown'), hms(sh.end - now));
+      setText($('leaveAt'), 'You leave at ' + clockFmt(sh.end));
+    } else {
+      setText($('countLabel'), on ? 'Unpaid time since your shift ended' : 'Shift over');
+      setText($('countdown'), on ? hms(now - sh.end) : '00:00:00');
+      setText($('leaveAt'), 'Your shift ended at ' + clockFmt(sh.end));
+    }
+
+    // status + message
+    let msg;
+    if (!on) {
+      setPill($('statusPill'), 'idle', 'Not clocked in');
+      msg = phase === 'before' ? 'Your shift starts at ' + clockFmt(sh.start) + '. Clock in when you sit down.'
+        : phase === 'during' ? 'Clock in to watch your pay drop in, coin by coin.'
+        : 'Today’s shift is over. The piggy is closed until tomorrow.';
+    } else if (phase === 'after') {
+      setPill($('statusPill'), 'warn', 'Past your end time');
+      msg = 'Anything you do now is free work. Clock out and go home.';
+    } else {
+      setPill($('statusPill'), 'calm', 'On shift since ' + clockFmt(S.clockedIn));
+      if (phase === 'before') msg = 'You’re early. Pay starts at ' + clockFmt(sh.start) + '. Get a coffee.';
+      else {
+        if (now - encourageAt > 45000) { encourageAt = now; encourageIdx = (encourageIdx + 1) % ENCOURAGE.length; }
+        msg = ENCOURAGE[encourageIdx];
+      }
+    }
+    setText($('message'), msg);
+    setText($('clockBtn'), on ? 'Clock out' : 'Clock in');
+    setText($('soundBtn'), 'Coin sound: ' + (S.sound ? 'on' : 'off'));
+    $('soundBtn').setAttribute('aria-pressed', String(!!S.sound));
+
+    // coins + milestones
+    const live = on && phase === 'during';
+    if (live && now - lastDrop >= 5000) {
+      const gap = Math.min(now - lastDrop, 10000);
+      lastDrop = now; spawnCoin(rate * gap);
+    }
+    if (on) {
+      for (const [p, text] of MILESTONES) {
+        if (prog >= p && !S.milestones.includes(p)) { S.milestones.push(p); save(); toast(text); }
+      }
+    }
+
+    // politics timer
+    const dramaTotal = S.dramaMs + (S.dramaStart ? now - S.dramaStart : 0);
+    setText($('dramaTime'), S.dramaStart ? hms(dramaTotal).replace(/^00:/, '') : mins(dramaTotal));
+    setText($('dramaMoney'), fmt(dramaTotal * rate) + ' of your pay today');
+    const db = $('dramaBtn');
+    setText(db, S.dramaStart ? 'Stop timer' : 'Start timer');
+    db.classList.toggle('running', !!S.dramaStart);
+
+    drawPig(dt, t / 1000, prog, live);
+    requestAnimationFrame(frame);
+  }
+
+  fillForm();
+  renderWins();
+  if (S.settings.example) $('settings').open = true;
+  if (S.clockedIn) keepAwake();
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</html>
