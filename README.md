@@ -4,6 +4,8 @@ A small web page for the working day. Clock in when you start, and watch your pa
 
 It is made for people close to burnout or tired of office politics. Whatever your colleagues say, your salary keeps coming in.
 
+![Piggy Payroll showing today's earnings filling a piggy bank and a countdown to 5:00 PM](docs/screenshot.png)
+
 ## Features
 
 - **Live earnings.** Enter a monthly paycheck or a daily salary. The page works out your pay per hour, minute and second and fills the piggy as the shift goes on.
