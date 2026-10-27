@@ -2,7 +2,7 @@
 
 A small web page for the working day. Clock in when you start, and watch your pay drop into a glass piggy bank, coin by coin, while a countdown shows how long until you leave.
 
-It is made for people close to burnout or tired of office politics. Whatever your colleagues say, your salary keeps coming in.
+It is made for people close to burnout who want a calmer workday. Whatever happens in the office, your salary keeps coming in.
 
 ![Piggy Payroll showing today's earnings filling a piggy bank and a countdown to 5:00 PM](docs/screenshot.png)
 
@@ -11,12 +11,13 @@ It is made for people close to burnout or tired of office politics. Whatever you
 - **Live earnings.** Enter a monthly paycheck or a daily salary. The page works out your pay per hour, minute and second and fills the piggy as the shift goes on.
 - **Countdown.** Time left until you leave, with a progress bar. After your end time it shows unpaid minutes and tells you to go home.
 - **Small wins.** Type a few words about anything you moved forward. Each win drops a green coin into the piggy.
-- **Politics timer.** Start it when the gossip starts and see how much of your paid day it takes.
+- **Interruption timer.** Start it when something pulls you off task and see how much of your paid day it takes.
+- **Export.** Download your daily results and an event log as an Excel workbook or a JSON file.
 - **Short wisdom lines.** A calm reminder that changes every 40 seconds.
 
 ## Use it
 
-Open `index.html` in any browser. No install and no account. Your pay and times are stored only in your own browser and are never sent anywhere.
+Open `index.html` in any browser. No install and no account. Your pay, times and history are stored only in your own browser and are never sent anywhere. Excel export loads a free spreadsheet library from cdnjs the first time you use it.
 
 ## Why it works
 

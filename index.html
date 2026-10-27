@@ -193,10 +193,19 @@ fieldset.field{border:0;margin:0;padding:0}
       </section>
 
       <section class="tool" aria-labelledby="dramaTitle">
-        <h2 id="dramaTitle">Politics timer</h2>
-        <p>Start it when the gossip starts.</p>
+        <h2 id="dramaTitle">Interruption timer</h2>
+        <p>Start it when something pulls you off task.</p>
         <div class="meter-row"><span class="big mono" id="dramaTime">0 min</span><span class="sub mono" id="dramaMoney">$0.00 of your pay today</span></div>
         <button type="button" class="btn" id="dramaBtn">Start timer</button>
+      </section>
+
+      <section class="tool" aria-labelledby="exportTitle">
+        <h2 id="exportTitle">Export</h2>
+        <p id="exportSub">Daily results and the event log.</p>
+        <div class="actions">
+          <button type="button" class="btn" id="exportXlsx">Excel</button>
+          <button type="button" class="btn" id="exportJson">JSON</button>
+        </div>
       </section>
 
       <details class="tool settings" id="settings">
@@ -249,13 +258,36 @@ fieldset.field{border:0;margin:0;padding:0}
   const KEY = 'clockin-piggy-v1';
   const $ = id => document.getElementById(id);
   const reduceMQ = matchMedia('(prefers-reduced-motion: reduce)');
+  const hm = str => { const [h, m] = String(str || '0:0').split(':').map(Number); return [h || 0, m || 0]; };
   const dayKey = () => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
   const DEFAULTS = {
     settings: { mode: 'monthly', amount: 4500, currency: 'USD', days: 22, start: '09:00', end: '17:00', example: true },
-    day: dayKey(), clockedIn: null, dramaMs: 0, dramaStart: null, milestones: [], wins: [], sound: false
+    day: dayKey(), clockedIn: null, dramaMs: 0, dramaStart: null, milestones: [], wins: [], sound: false,
+    firstIn: null, lastOut: null, banked: null, history: [], log: []
   };
   const clone = o => JSON.parse(JSON.stringify(o));
-  const freshDay = s => Object.assign(s, { day: dayKey(), clockedIn: null, dramaMs: 0, dramaStart: null, milestones: [], wins: [] });
+  const LOG_MAX = 5000, HISTORY_MAX = 1000;
+
+  // one row of daily results; `live` marks today while it is still running
+  function summarize(s, live) {
+    const set = s.settings, pay = dailyPay(set), sh = shift(Date.now(), set);
+    const drama = s.dramaMs + (s.dramaStart ? Date.now() - s.dramaStart : 0);
+    const banked = s.banked != null ? s.banked : (s.clockedIn && !live ? pay : null);
+    return {
+      date: s.day, status: live ? 'in progress' : 'closed', currency: set.currency, dailyPay: +pay.toFixed(2),
+      shiftStart: set.start, shiftEnd: set.end, clockIn: s.firstIn, clockOut: s.lastOut,
+      banked: banked == null ? null : +banked.toFixed(2),
+      wins: s.wins.length, winList: s.wins.map(w => w.text).join('; '),
+      interruptMin: +(drama / 60000).toFixed(1), interruptCost: +(drama * pay / sh.len).toFixed(2)
+    };
+  }
+  function freshDay(s) {
+    if (s.firstIn || s.wins.length || s.dramaMs || s.dramaStart) {
+      s.history.push(summarize(s, false));
+      if (s.history.length > HISTORY_MAX) s.history.splice(0, s.history.length - HISTORY_MAX);
+    }
+    return Object.assign(s, { day: dayKey(), clockedIn: null, dramaMs: 0, dramaStart: null, milestones: [], wins: [], firstIn: null, lastOut: null, banked: null });
+  }
 
   function load() {
     let s = null;
@@ -264,12 +296,18 @@ fieldset.field{border:0;margin:0;padding:0}
     if (s && typeof s === 'object') {
       Object.assign(out, s);
       out.settings = Object.assign({}, DEFAULTS.settings, s.settings || {});
+      if (!Array.isArray(out.history)) out.history = [];
+      if (!Array.isArray(out.log)) out.log = [];
     }
     if (out.day !== dayKey()) freshDay(out);
     return out;
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
   let S = load();
+  function logEvent(event, detail = '', amount = null) {
+    S.log.push({ time: Date.now(), event, detail, amount: amount == null ? null : +amount.toFixed(2), currency: S.settings.currency });
+    if (S.log.length > LOG_MAX) S.log.splice(0, S.log.length - LOG_MAX);
+  }
 
   /* ---------- money and time ---------- */
   let fmtCache = {};
@@ -281,16 +319,15 @@ fieldset.field{border:0;margin:0;padding:0}
     }
     return fmtCache[k].format(v);
   }
-  const hm = str => { const [h, m] = String(str || '0:0').split(':').map(Number); return [h || 0, m || 0]; };
-  function shift(now) {
-    const d = new Date(now), [sh, sm] = hm(S.settings.start), [eh, em] = hm(S.settings.end);
+  function shift(now, set = S.settings) {
+    const d = new Date(now), [sh, sm] = hm(set.start), [eh, em] = hm(set.end);
     const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh, sm).getTime();
     let end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em).getTime();
     if (end <= start) end += 864e5;
     return { start, end, len: end - start };
   }
-  function dailyPay() {
-    const s = S.settings, a = Math.max(0, +s.amount || 0);
+  function dailyPay(s = S.settings) {
+    const a = Math.max(0, +s.amount || 0);
     return s.mode === 'daily' ? a : a / Math.max(1, +s.days || 22);
   }
   const clockFmt = ts => new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -350,23 +387,23 @@ fieldset.field{border:0;margin:0;padding:0}
   const MILESTONES = [
     [0.25, 'A quarter of the piggy is full. Keep a steady pace, not a frantic one.'],
     [0.5, 'Halfway there. Take a real lunch, away from your desk.'],
-    [0.75, 'Three quarters done. Wrap up. Don’t pick up new fights now.'],
+    [0.75, 'Three quarters done. Wrap up. Don’t start anything big now.'],
     [1, 'The piggy is full. Today’s pay is banked. Go home.']
   ];
   const ENCOURAGE = [
     'Every minute here is already paid. You don’t need to earn it twice.',
-    'You are paid for your work. Winning arguments is not in your contract.',
+    'You are paid for your work. Not every point needs to be won.',
     'Not every message needs an answer right now.',
-    'Office drama doesn’t make the piggy fill any faster.',
+    'Rushing doesn’t make the piggy fill any faster.',
     'Do the next useful thing. Then the one after that.',
     'Good enough and on time beats perfect and late.',
     'Protect your evening. It’s not part of the shift.'
   ];
   const WISDOM = [
     'Whatever your colleagues say, your salary keeps coming in.',
-    'Gossip doesn’t change your pay. Let it pass.',
-    'Your worth isn’t decided in the meeting room.',
-    'Someone else’s bad mood is not on your payslip.',
+    'Not every conversation needs your energy. Let some pass.',
+    'One meeting doesn’t decide your worth.',
+    'Look after your own part of the day. That is enough.',
     'Do your part well. The rest is noise.'
   ];
 
@@ -536,6 +573,7 @@ fieldset.field{border:0;margin:0;padding:0}
     err.hidden = true;
     S.settings = { mode, amount, currency: $('currency').value, days: mode === 'monthly' ? days : (S.settings.days || 22), start, end, example: false };
     fmtCache = {};
+    logEvent('pay settings saved', mode + ' ' + amount + ' ' + S.settings.currency + ', ' + start + ' to ' + end, dailyPay());
     save();
     toast('Pay saved. Today is worth ' + fmt(dailyPay()) + '.');
   });
@@ -552,6 +590,7 @@ fieldset.field{border:0;margin:0;padding:0}
     if (!v) { $('winInput').focus(); return; }
     ensureAudio();
     S.wins.push({ t: Date.now(), text: v });
+    logEvent('small win', v);
     $('winInput').value = '';
     save(); renderWins(); spawnCoin(0, true);
   });
@@ -565,14 +604,18 @@ fieldset.field{border:0;margin:0;padding:0}
       const sh = shift(now), prog = Math.min(1, Math.max(0, (now - sh.start) / sh.len));
       S.milestones = MILESTONES.filter(m => prog >= m[0]).map(m => m[0]);
       lastDrop = now - 4000;
+      if (!S.firstIn) S.firstIn = now;
+      logEvent('clock in');
       keepAwake();
       save();
       toast(now >= sh.end ? 'You clocked in after your shift ended. The piggy is already full.' : 'Clocked in. Watch the piggy fill up.');
     } else {
       const sh = shift(now), el = Math.min(Math.max(now - sh.start, 0), sh.len), n = S.wins.length;
       S.clockedIn = null;
-      if (S.dramaStart) { S.dramaMs += now - S.dramaStart; S.dramaStart = null; }
+      if (S.dramaStart) { S.dramaMs += now - S.dramaStart; logEvent('interruption timer stop', Math.round((now - S.dramaStart) / 60000) + ' min', (now - S.dramaStart) * dailyPay() / sh.len); S.dramaStart = null; }
       if (wake) { wake.release().catch(() => {}); wake = null; }
+      S.lastOut = now; S.banked = el * dailyPay() / sh.len;
+      logEvent('clock out', n + ' win' + (n === 1 ? '' : 's'), S.banked);
       save();
       toast('Clocked out. You banked ' + fmt(el * dailyPay() / sh.len) + (n ? ' and ' + n + ' win' + (n > 1 ? 's' : '') : '') + ' today. Rest well.');
     }
@@ -587,13 +630,86 @@ fieldset.field{border:0;margin:0;padding:0}
     if (S.dramaStart) {
       const took = now - S.dramaStart, sh = shift(now);
       S.dramaMs += took; S.dramaStart = null;
+      logEvent('interruption timer stop', Math.max(1, Math.round(took / 60000)) + ' min', took * dailyPay() / sh.len);
       toast('That took ' + Math.max(1, Math.round(took / 60000)) + ' min, about ' + fmt(took * dailyPay() / sh.len) + ' of your paid day.');
     } else {
       S.dramaStart = now;
-      toast('Whatever they say, your salary keeps coming in.');
+      logEvent('interruption timer start');
+      toast('Timer on. Your pay keeps coming in either way.');
     }
     save();
   });
+
+  /* ---------- export ---------- */
+  const stamp = ts => {
+    if (!ts) return '';
+    const d = new Date(ts), p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  };
+  function exportRows() {
+    const days = S.history.concat(summarize(S, true)).map(r => Object.assign({}, r, { clockIn: stamp(r.clockIn), clockOut: stamp(r.clockOut) }));
+    const log = S.log.map(e => Object.assign({}, e, { time: stamp(e.time) }));
+    return { days, log };
+  }
+  const fileBase = () => 'clockin-piggy-' + stamp(Date.now()).slice(0, 10);
+
+  // claude.ai viewer asks before saving; opened as a local file it falls back to a plain browser download
+  let dlNs;
+  async function offerFile(filename, data) {
+    if (dlNs === undefined) dlNs = window.claude && window.claude.use ? await window.claude.use('downloads').catch(() => null) : null;
+    if (dlNs) {
+      try { await dlNs.save({ filename, data }); toast('Saved ' + filename + '.'); }
+      catch (e) { if (e && e.code !== 'declined') toast('Could not save the file here.'); }
+      return;
+    }
+    const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data]));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  let xlsxLib = null;
+  function loadXlsx() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    return xlsxLib = xlsxLib || new Promise((ok, fail) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      sc.onload = () => ok(window.XLSX);
+      sc.onerror = () => { xlsxLib = null; fail(new Error('load')); };
+      document.head.appendChild(sc);
+    });
+  }
+  const DAY_COLS = [['date', 'Date'], ['status', 'Status'], ['currency', 'Currency'], ['dailyPay', 'Daily pay'], ['shiftStart', 'Shift start'], ['shiftEnd', 'Shift end'],
+    ['clockIn', 'First clock in'], ['clockOut', 'Last clock out'], ['banked', 'Banked'], ['wins', 'Wins'], ['winList', 'Win notes'], ['interruptMin', 'Interruption minutes'], ['interruptCost', 'Interruption cost']];
+  const LOG_COLS = [['time', 'Time'], ['event', 'Event'], ['detail', 'Detail'], ['amount', 'Amount'], ['currency', 'Currency']];
+  const sheet = (X, rows, cols) => {
+    const ws = X.utils.aoa_to_sheet([cols.map(c => c[1])].concat(rows.map(r => cols.map(c => r[c[0]] == null ? '' : r[c[0]]))));
+    ws['!cols'] = cols.map(c => ({ wch: Math.max(c[1].length + 2, c[0] === 'winList' || c[0] === 'detail' ? 36 : 12) }));
+    return ws;
+  };
+
+  $('exportJson').addEventListener('click', () => {
+    const { days, log } = exportRows();
+    const out = { exported: stamp(Date.now()), settings: S.settings, dailyResults: days, eventLog: log };
+    offerFile(fileBase() + '.json', JSON.stringify(out, null, 2));
+  });
+  $('exportXlsx').addEventListener('click', async () => {
+    const btn = $('exportXlsx');
+    btn.disabled = true;
+    try {
+      const X = await loadXlsx(), { days, log } = exportRows(), wb = X.utils.book_new();
+      X.utils.book_append_sheet(wb, sheet(X, days, DAY_COLS), 'Daily results');
+      X.utils.book_append_sheet(wb, sheet(X, log, LOG_COLS), 'Event log');
+      const buf = X.write(wb, { bookType: 'xlsx', type: 'array' });
+      await offerFile(fileBase() + '.xlsx', new Blob([buf]));
+    } catch (e) {
+      toast('Excel export needs an internet connection. Try JSON instead.');
+    } finally { btn.disabled = false; }
+  });
+  function renderExportSub() {
+    const n = S.history.length + 1, e = S.log.length;
+    setText($('exportSub'), n + ' day' + (n > 1 ? 's' : '') + ' of results and ' + e + ' logged event' + (e === 1 ? '' : 's') + '.');
+  }
 
   /* ---------- main loop ---------- */
   const todayEl = $('todayLabel');
@@ -676,11 +792,11 @@ fieldset.field{border:0;margin:0;padding:0}
     }
     if (on) {
       for (const [p, text] of MILESTONES) {
-        if (prog >= p && !S.milestones.includes(p)) { S.milestones.push(p); save(); toast(text); }
+        if (prog >= p && !S.milestones.includes(p)) { S.milestones.push(p); logEvent('milestone', Math.round(p * 100) + '% of shift', earned); save(); toast(text); }
       }
     }
 
-    // politics timer
+    // interruption timer
     const dramaTotal = S.dramaMs + (S.dramaStart ? now - S.dramaStart : 0);
     setText($('dramaTime'), S.dramaStart ? hms(dramaTotal).replace(/^00:/, '') : mins(dramaTotal));
     setText($('dramaMoney'), fmt(dramaTotal * rate) + ' of your pay today');
@@ -688,6 +804,7 @@ fieldset.field{border:0;margin:0;padding:0}
     setText(db, S.dramaStart ? 'Stop timer' : 'Start timer');
     db.classList.toggle('running', !!S.dramaStart);
 
+    renderExportSub();
     drawPig(dt, t / 1000, prog, live);
     requestAnimationFrame(frame);
   }
@@ -699,5 +816,3 @@ fieldset.field{border:0;margin:0;padding:0}
   requestAnimationFrame(frame);
 })();
 </script>
-
-</html>
