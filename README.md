@@ -1,4 +1,5 @@
 # Piggy Payroll
+n**Clock in, watch your pay fill the piggy, go home on time.**
 
 A small web page for the working day. Clock in when you start, and watch your pay drop into a glass piggy bank, coin by coin, while a countdown shows how long until you leave.
 
